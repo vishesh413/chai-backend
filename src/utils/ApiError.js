@@ -1,9 +1,9 @@
 class ApiError extends Error {
     constructor(
         statusCode,
-        message= "SOmething went wrong",
+        message= "Something went wrong",
         errors = [],
-        statck = ""
+        stack = ""
     ){
         super(message) //This is necessary because the Error class needs the message property to be properly initialized. 
         this.statusCode = statusCode
@@ -12,8 +12,8 @@ class ApiError extends Error {
         this.success = false;
         this.errors = errors //errors ka replacement
 
-        if(statck) {
-            this.statck = statck
+        if(stack) {
+            this.stack = stack
 
         } else{
             Error.captureStackTrace(this, this.constructor)
