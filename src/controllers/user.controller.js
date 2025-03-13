@@ -152,11 +152,12 @@ const logoutUser = asyncHandler(async(req, res) => {
     .json(new ApiResponse(200, {}, "User logged Out"))
 })
 
+// end point
 const refreshAccessToken = asyncHandler(async (req, res) => {
     const incomingRefreshToken = req.cookies.refreshToken || req.body.refreshToken
 // or wala mobile app k liye 
 
-    if (incomingRefreshToken){
+    if (!incomingRefreshToken){
         throw new ApiError(401, "unauthorized request")
     }
     // ki token to h hi n apn pe
@@ -194,10 +195,130 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
 
 })
 
+
+const changeCurrentPassword = asyncHandler(async(req, res) => {
+    const {oldPassword, newPassword} = req.body
+
+    // if (!(newPassword ==== confPassword)) {
+    //     throw new error
+    // }
+
+    const user = await User.findById(req.user?._id)
+    const isPasswordCorrect = await user.isPasswordCorrect(oldPassword)
+
+    if (!isPasswordCorrect) {
+        throw new ApiError(400, "Old password is incorrect")
+    }
+
+    user.password = newPassword 
+    await user.save({validateBeforeSave: false})
+    // yaha par user.save isliye karaya hai jisse user.model me jo password wala hook wo call hojaye 
+    // Database hamesha dusre continent me hota hai
+
+    return res.status(200)
+    .json(new ApiResponse(200, {}, "Password change succesfully"))
+    // yaha pr user ko message bhej rahe hai aapka password succesfully change hogya hai
+})
+
+const getCurrentUser = asyncHandler(async(req, res) => {
+    return res.status(200)
+    .json(200, req.user, "current user fetched successfully")
+})
+
+const updateAccountDetails = asyncHandler(async(req, res) => {
+    const {fullname, email} = req.body
+
+    if (!fullname || !email) {
+        throw new ApiError(400, "ALL fields are required")
+    }
+
+    const user = User.findByIdAndUpdate(
+        req.user?._id,
+        {
+            $set:{
+                fullname: fullname,
+                email: email
+            }
+          
+        },
+        {new: true}
+    ).select("-password")
+
+    return res.status(200)
+    .json(new ApiResponse(200, user, "Accout details updated succesfully"))
+})
+
+const updateUserAvatar = asyncHandler(async(req, res) => {
+    const avatarLocalPath = req.file?.path
+
+    if(!avatarLocalPath) {
+        throw new ApiError(400, "Avatar file is missing")
+    }
+    const avatar = await uploadCloudinary(avatarLocalPath)
+
+    if(!avatar.url) {
+        throw new ApiError(400, "Error while uploading on avatar")
+    }
+
+    const user = await User.findByIdAndUpdate(
+        req.user?._id,
+        {
+            $set:{
+                avatar: avatar.url
+            }
+        },
+        {new: true}
+    ).select(-password)
+    return res.status(200)
+    .json(
+        new ApiResponse(200, user, "Avatar image updated successfully")
+    )
+})
+
+const updateUsercoverImage = asyncHandler(async(req, res) => {
+    const coverImageLocalPath = req.file?.path
+
+    if(!coverImageLocalPath) {
+        throw new ApiError(400, "coverImage file is missing")
+    }
+
+    const coverImage = await uploadCloudinary(coverImageLocalPath)
+
+    if(!coverImage.url) {
+        throw new ApiError(400, "Error while uploading on coverImage")
+
+    }
+    
+    // ye upr jo code hai wo file ka path or file ko dudhne k liye hai aur jab file miljayegi
+    // uske baad usko update bhi karana padega to uske update karane k liye necche wala code 
+    // likha hai humne 
+
+    const user = await User.findByIdAndUpdate(
+        req.user?._id,
+        {
+            $set:{
+                coverImage: coverImage.url
+            }
+        },
+        {new: true}
+    ).select(-password)
+
+    return res.status(200)
+    .json(
+        new ApiResponse(200, user, "cover image updated successfully")
+    )
+})
+
 export { registerUser,
     loginUser,
     logoutUser,
-    refreshAccessToken 
+    refreshAccessToken,
+    changeCurrentPassword,
+    getCurrentUser,
+    updateAccountDetails,
+    updateUserAvatar,
+    updateUsercoverImage 
+
 
 }
 
