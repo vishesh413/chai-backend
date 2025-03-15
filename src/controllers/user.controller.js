@@ -308,6 +308,138 @@ const updateUsercoverImage = asyncHandler(async(req, res) => {
         new ApiResponse(200, user, "cover image updated successfully")
     )
 })
+// req.params  is stored dymanic value from extracted url from express.js
+
+const getUserChannelProfile = asyncHandler(async(req, res) => {
+    const {username} = req.params
+
+    if (!username?.trim()) {
+        throw new ApiError(400, "username is missing")
+    }
+
+    const channel = await User.aggregate([
+        {
+            $match: {
+                username: username?.toLowerCase()
+            }
+        },
+        {
+            $lookup: {
+                from: "Subscriptions", // yaha par function me sare letter lowercase me hojate hai aur word prural hojate hai
+                localField: "_id",
+                foreignField:"channel",
+                as:"subscribers"
+            }
+        },
+        {
+            $lookup: {
+                from: "Subscriptions", 
+                localField: "_id",
+                foreignField:"subscriber",
+                as:"subscribedTo"
+            }
+        },
+        {
+            $addFields: {
+                subscriberCount: {
+                    $size: "$subscribers"
+                },
+                channelsSubscribedToCount: {
+                    $size: "$subscribedTo"
+                },
+                isSubscribed: {
+                    $cond: {
+                        if: {$in: [req.user?._id, "subscribers.subscriber"]},// ye jo (in) operator hai array or object dono k andar count krke de deta hai aur is function
+                        //hum ye count kar rhe hai ki humne subscribed kiya hai h ki nhi 
+                        then: true,
+                        else: false
+                    }
+                }
+
+            }
+        },
+        {
+            // project ka mtlb hota hai ki projection dena ki samne wale user ko kuch selected chijen dena hai 
+            $project: {
+                fullname: 1,
+                username: 1, 
+                subscriberCount: 1,
+                channelsSubscribedToCount: 1,
+                isSubscribed: 1,
+                avatar: 1,
+                coverImage: 1,
+                email: 1
+            }
+        }
+    ])
+
+    if (!channel?.lenght) {
+        throw new ApiError(404, "channel does not exists")
+        
+    }
+
+    return res.status(200)
+    .json(new ApiResponse(200, channel[0]), "User fetched successfully")
+     
+})
+
+// Aggregation pipeline ka code jo hai wo direct pass hota h to usme mongoose ki object Id hame khud hi dekhni pdti hai 
+const getWatchHistory = asyncHandler(async(req, res) => {
+    const user = await User.aggregate([
+        {
+            // match stage in a mongoDB aggregation pipeline is used to filter the documents that pass through the pipelines
+            $match: {
+                _id: new mongoose.Types.ObjectId(req.user._id)
+            }
+        },
+        {
+            // it allows you to retrieve the related data from a differnt collection and embed it within the document of the current collection 
+            $lookup: {
+                from: "videos",
+                localField: "watchHistory",
+                foreginField: "_id",
+                as: "watchHistory",
+                pipelines: [
+                    {
+                        $lookup: {
+                            from: "users",
+                            localField: "owner",
+                            foreignField: "_id",
+                            as: "owner",
+                            pipeline: [
+                                {
+                                    $project: {
+                                        fullname: 1,
+                                        username: 1,
+                                        avatar: 1
+                                    }
+                                }
+                            ]
+                        }
+                    },// yaha par hame array mil rha tha aur phir usme hame first value nikalni padti to iske liye hamne agla code likha hai
+                    {
+                        $addFields: {
+                            owner: {
+                                $first: "$owner"
+                            }
+                        }
+                    }
+                ]
+            }
+        }
+    ])
+
+    return res.status(200)
+.json(
+    new ApiResponse(
+        200,
+        user[0].getWatchHistory,"Watch history fetched successfully"
+    )    
+)
+
+})
+
+
 
 export { registerUser,
     loginUser,
@@ -317,7 +449,9 @@ export { registerUser,
     getCurrentUser,
     updateAccountDetails,
     updateUserAvatar,
-    updateUsercoverImage 
+    updateUsercoverImage,
+    getUserChannelProfile,
+    getWatchHistory 
 
 
 }
